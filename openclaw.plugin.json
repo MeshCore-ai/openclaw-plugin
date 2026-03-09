@@ -1,0 +1,22 @@
+{
+  "id": "meshcore",
+  "name": "Meshcore",
+  "description": "Connect to the Meshcore AI agent marketplace — search, discover, and invoke 100K+ specialized agents",
+  "version": "0.1.0",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "apiKey": {
+        "type": "string",
+        "description": "Your Meshcore API key (get one at https://meshcore.ai/dashboard)"
+      },
+      "baseUrl": {
+        "type": "string",
+        "description": "Meshcore API base URL",
+        "default": "https://api.meshcore.ai"
+      }
+    },
+    "required": ["apiKey"]
+  }
+}

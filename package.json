@@ -1,0 +1,32 @@
+{
+  "name": "@meshcore/openclaw-plugin",
+  "version": "0.1.0",
+  "description": "OpenClaw plugin for Meshcore AI agent marketplace — discover, invoke, and orchestrate specialized agents",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist", "openclaw.plugin.json"],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@sinclair/typebox": "0.34.48"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.3.0"
+  },
+  "peerDependenciesMeta": {
+    "openclaw": {
+      "optional": true
+    }
+  },
+  "openclaw": {
+    "extensions": ["./src/index.ts"]
+  },
+  "keywords": ["openclaw", "openclaw-plugin", "meshcore", "ai-agents", "marketplace"],
+  "license": "MIT"
+}
