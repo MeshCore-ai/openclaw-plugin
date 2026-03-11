@@ -23,11 +23,14 @@ export type MeshcoreAgent = {
 };
 
 export type GatewayResponse = {
-  success: boolean;
-  message: string;
+  success?: boolean;
+  message?: string;
   data?: unknown;
   error?: string;
   errorCode?: string;
+  // Raw upstream responses (e.g. OpenAI chat completion) won't have success/message.
+  // Any extra fields from the upstream response are preserved.
+  [key: string]: unknown;
 };
 
 export class MeshcoreClient {

@@ -1,5 +1,5 @@
 import { Type } from "@sinclair/typebox";
-import type { MeshcoreClient, MeshcoreAgent } from "./meshcore-client.js";
+import type { MeshcoreClient, MeshcoreAgent, GatewayResponse } from "./meshcore-client.js";
 
 function formatAgent(a: MeshcoreAgent): string {
   const price =
@@ -62,7 +62,14 @@ export function createSearchTool(client: MeshcoreClient) {
         throw new Error("query is required");
       }
 
-      const agents = await client.search(query.trim(), limit);
+      let agents: MeshcoreAgent[];
+      try {
+        agents = await client.search(query.trim(), limit);
+      } catch (err) {
+        return {
+          content: [{ type: "text" as const, text: `Search failed: ${(err as Error).message}` }],
+        };
+      }
 
       if (agents.length === 0) {
         return {
@@ -110,11 +117,17 @@ export function createInfoTool(client: MeshcoreClient) {
         throw new Error("agentId is required");
       }
 
-      const agent = await client.getAgent(agentId.trim());
-      return {
-        content: [{ type: "text" as const, text: formatAgentDetail(agent) }],
-        details: { agent: { id: agent.id, name: agent.name, type: agent.agentType } },
-      };
+      try {
+        const agent = await client.getAgent(agentId.trim());
+        return {
+          content: [{ type: "text" as const, text: formatAgentDetail(agent) }],
+          details: { agent: { id: agent.id, name: agent.name, type: agent.agentType } },
+        };
+      } catch (err) {
+        return {
+          content: [{ type: "text" as const, text: `Failed to get agent info: ${(err as Error).message}` }],
+        };
+      }
     },
   };
 }
@@ -148,27 +161,40 @@ export function createInvokeTool(client: MeshcoreClient) {
         throw new Error("payload must be a JSON object");
       }
 
-      const response = await client.invoke(agentId.trim(), payload);
+      let response: GatewayResponse;
+      try {
+        response = await client.invoke(agentId.trim(), payload);
+      } catch (err) {
+        return {
+          content: [{ type: "text" as const, text: `Agent call failed: ${(err as Error).message}` }],
+        };
+      }
 
-      if (!response.success) {
+      // Gateway wraps errors in {success: false, error/message}.
+      // Successful LLM calls return the raw upstream response (e.g. OpenAI chat completion).
+      if (response.success === false) {
         return {
           content: [
             {
               type: "text" as const,
-              text: `Agent call failed: ${response.error ?? response.message}`,
+              text: `Agent call failed: ${response.error ?? response.message ?? "unknown error"}`,
             },
           ],
         };
       }
 
-      const text =
-        typeof response.data === "string"
-          ? response.data
-          : JSON.stringify(response.data, null, 2);
+      // Extract text from OpenAI-compatible chat completion format
+      const choices = response.choices as Array<{ message?: { content?: string } }> | undefined;
+      const assistantText = choices?.[0]?.message?.content;
+
+      // If it's a wrapped gateway response, use data field
+      const resultData = response.data ?? (assistantText ? undefined : response);
+      const text = assistantText
+        ?? (typeof resultData === "string" ? resultData : JSON.stringify(resultData, null, 2));
 
       return {
         content: [{ type: "text" as const, text: `Agent response:\n\n${text}` }],
-        details: { success: true, data: response.data },
+        details: { success: true, data: resultData ?? assistantText },
       };
     },
   };
@@ -205,19 +231,29 @@ export function createAnalyzeTool(client: MeshcoreClient) {
         throw new Error("requests must be a non-empty array");
       }
 
-      const results = await client.invokeMultiple(requests);
+      let results: Array<{ agentId: string; result: GatewayResponse | { error: string } }>;
+      try {
+        results = await client.invokeMultiple(requests);
+      } catch (err) {
+        return {
+          content: [{ type: "text" as const, text: `Multi-agent call failed: ${(err as Error).message}` }],
+        };
+      }
 
       const sections = results.map((r) => {
         const header = `### Agent: ${r.agentId}`;
-        if ("error" in r.result) {
+        if ("error" in r.result && !("choices" in r.result)) {
           return `${header}\n**Error:** ${r.result.error}`;
         }
-        const resp = r.result;
-        if (!resp.success) {
-          return `${header}\n**Failed:** ${resp.error ?? resp.message}`;
+        const resp = r.result as GatewayResponse;
+        if (resp.success === false) {
+          return `${header}\n**Failed:** ${resp.error ?? resp.message ?? "unknown error"}`;
         }
-        const data =
-          typeof resp.data === "string" ? resp.data : JSON.stringify(resp.data, null, 2);
+        // Extract from OpenAI-compatible chat completion format
+        const choices = resp.choices as Array<{ message?: { content?: string } }> | undefined;
+        const assistantText = choices?.[0]?.message?.content;
+        const data = assistantText
+          ?? (typeof resp.data === "string" ? resp.data : JSON.stringify(resp.data ?? resp, null, 2));
         return `${header}\n${data}`;
       });
 

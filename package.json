@@ -1,5 +1,5 @@
 {
-  "name": "@meshcore/openclaw-plugin",
+  "name": "@meshcore/meshcore",
   "version": "0.1.0",
   "description": "OpenClaw plugin for Meshcore AI agent marketplace — discover, invoke, and orchestrate specialized agents",
   "type": "module",
